@@ -78,8 +78,9 @@ class AdaptiveSearchBar extends StatelessWidget {
         focusNode: focusNode,
         autoFocus: autofocus,
         leading: leading ??
-            const HugeIcon(
+            HugeIcon(
               icon: HugeIcons.strokeRoundedSearch01,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               size: 20,
             ),
         trailing: trailing != null ? [trailing!] : null,

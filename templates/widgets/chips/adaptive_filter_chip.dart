@@ -17,10 +17,10 @@ class AdaptiveFilterChip extends StatelessWidget {
   final ValueChanged<bool>? onSelected;
 
   /// Optional HugeIcon displayed before the label when selected.
-  final List<List<dynamic>>? selectedIcon;
+  final IconData? selectedIcon;
 
   /// Optional HugeIcon displayed before the label when not selected.
-  final List<List<dynamic>>? icon;
+  final IconData? icon;
 
   /// The background color when selected.
   final Color? selectedColor;

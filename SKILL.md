@@ -21,35 +21,51 @@ All widgets use the `Adaptive` prefix (`AdaptiveButton`, `AdaptiveScaffold`, `Ad
 
 ## Template Files — Ready to Copy
 
-All 41 production-tested adaptive widget files are in the `templates/` directory, organized by category:
+All 62 template files are in `templates/`, organized by category — 51 adaptive widgets, 7 foundation
+files (plus the two halves of a conditional import), a barrel, and a widget-test template:
 
 ```
 templates/
-├── foundation/           # PlatformUtils, PlatformWidget, PlatformBuilder, AdaptiveThemeScope
-└── widgets/
-    ├── layout/           # Scaffold, AppBar, BottomNav, Card, Divider, ListTile, ListSection, SliverAppBar, TabScaffold
-    ├── buttons/          # Button, FAB, IconButton, TextButton
-    ├── inputs/           # TextField, SearchBar, Switch, Slider, Checkbox, Radio, SegmentedControl, Picker, FormField
-    ├── feedback/         # Dialog, ActionSheet, SnackBar, ProgressIndicator, RefreshIndicator, Tooltip
-    ├── chips/            # Chip, FilterChip
-    ├── navigation/       # NavigationDrawer, PageRoute, PopupMenu, TabBar
-    ├── pickers/          # DatePicker, TimePicker, Picker
-    └── context_menu/     # ContextMenu
+├── adaptive.dart         # Barrel — single import for everything below
+├── foundation/           # PlatformUtils, PlatformWidget, PlatformBuilder, AdaptiveThemeScope,
+│                         # AdaptiveTypography, AdaptiveTokens, AdaptiveIcons
+├── widgets/
+│   ├── layout/           # Scaffold, AppBar, BottomNav, Card, Divider, ListTile, ListSection, SliverAppBar, TabScaffold
+│   ├── buttons/          # Button, FAB, IconButton, TextButton
+│   ├── inputs/           # TextField, SearchBar, Switch, Slider, Checkbox, Radio, SegmentedControl, FormField
+│   ├── feedback/         # Dialog, ActionSheet, SnackBar, ProgressIndicator, RefreshIndicator, Tooltip
+│   ├── chips/            # Chip, FilterChip
+│   ├── navigation/       # NavigationDrawer, PageRoute, PopupMenu, TabBar
+│   ├── pickers/          # DatePicker, TimePicker, Picker
+│   ├── context_menu/     # ContextMenu
+│   └── states/           # LoadingOverlay, LoadingPage, LoadingButton, EmptyState, ErrorState,
+│                         # ErrorBanner, Disabled, Shimmer, Skeletons
+├── responsive/           # Breakpoints, ResponsiveGrid, ConstrainedContent, ResponsiveScaffold, MasterDetail
+└── test/                 # Bi-platform widget-test template
 ```
 
 ### How to install in a new project
 
-**Copy the templates verbatim** into `lib/shared/`:
+**Copy the templates verbatim** into `lib/shared/design_system/`:
 
 ```
-lib/shared/
-├── foundation/    ← copy from templates/foundation/
-└── widgets/       ← copy from templates/widgets/
+lib/shared/design_system/
+├── adaptive.dart   ← the barrel; import this and nothing else
+├── foundation/     ← copy from templates/foundation/
+├── widgets/        ← copy from templates/widgets/
+└── responsive/     ← copy from templates/responsive/
 ```
 
-Then create a barrel file `lib/shared/widgets.dart` exporting everything.
+Consumers then need one import:
 
-**Only thing to adjust**: Nothing. The templates use relative imports and only depend on `flutter` and `hugeicons`. No package-specific imports to replace.
+```dart
+import 'package:your_app/shared/design_system/adaptive.dart';
+```
+
+**Only thing to adjust**: the two `package:` imports at the top of
+`templates/test/adaptive_widget_test_template.dart`, since a file under `test/` cannot reach
+`lib/` by relative path. Everything else uses relative imports and depends only on `flutter`
+and `hugeicons` — nothing to rewire.
 
 ## Foundation
 
@@ -59,10 +75,28 @@ Three files power the system. See [foundation.md](references/foundation.md) for 
 
 ```dart
 abstract final class PlatformUtils {
-  static bool get isCupertino => Platform.isIOS || Platform.isMacOS;
+  /// Forces the rendering in ANY build mode (release-safe). null in production.
+  static TargetPlatform? debugOverridePlatform;
+
+  static bool get isCupertino {
+    final p = debugOverridePlatform ?? defaultTargetPlatform;
+    return p == TargetPlatform.iOS || p == TargetPlatform.macOS;
+  }
   static bool get isMaterial => !isCupertino;
 }
 ```
+
+Use `defaultTargetPlatform`, **never** `dart:io`'s `Platform.isIOS`, for UI branching,
+and reserve `Platform.isIOS` for non-UI concerns (permissions, store links, file paths).
+
+To force a rendering — a web gallery's iOS/Android toggle — set
+`PlatformUtils.debugOverridePlatform`, **not** `debugDefaultTargetPlatformOverride`.
+The latter is **debug-only**: it throws in a release build (`Cannot modify
+debugDefaultTargetPlatformOverride in non-debug builds`) and `defaultTargetPlatform`
+ignores it outside debug — so a *deployed* gallery built with `--release` crashes on
+toggle. `debugOverridePlatform` is a plain static field, so it works in every build
+mode. Widget tests can keep using `debugDefaultTargetPlatformOverride` (they run in
+debug).
 
 ### Three Implementation Patterns
 
@@ -158,7 +192,7 @@ class AdaptiveThemeScope extends StatelessWidget {
 }
 ```
 
-## Widget Catalog (37 widgets)
+## Widget Catalog (51 widgets)
 
 See [widgets.md](references/widgets.md) for implementation code of each widget.
 
@@ -251,26 +285,44 @@ HugeIcon(
 )
 ```
 
-| Platform | Preferred style | Reason |
-|----------|----------------|--------|
-| Android | `strokeRounded*` | Matches Material outlined icons |
-| iOS | `solid*` | Matches SF Symbols filled style |
+### One variant family, not two
 
-Adaptive helper:
+`hugeicons` ships a **single** variant family: all ~4,470 constants are `strokeRounded*`.
+There are **no** `solid*` constants. Any code that branches `strokeRounded` on Android and
+`solid` on iOS will not compile against this package, however appealing the idea is
+(iOS SF Symbols do lean filled).
+
+Note also that `HugeIcon.color` is **required** and non-nullable — a helper taking a
+`Color?` and forwarding it will not compile either.
+
+So icon adaptation is done through **colour and size**, not fill.
+
+### Use the registry
+
+Do not scatter raw `HugeIcons.*` constants across screens: name icons by *purpose* in
+`AdaptiveIcons` (`templates/foundation/adaptive_icons.dart`) and use `AdaptiveIcon`, which
+resolves the foreground colour per platform so dark mode works.
 
 ```dart
-Widget adaptiveIcon(IconData stroke, IconData solid, {double size = 24, Color? color}) {
-  return HugeIcon(
-    icon: PlatformUtils.isCupertino ? solid : stroke,
-    size: size,
-    color: color,
-  );
-}
+const AdaptiveIcon(AdaptiveIcons.wallet)
+AdaptiveIcon(AdaptiveIcons.delete, color: AdaptiveColors.destructive(context))
 ```
 
-Common mappings: Home01, Settings01, Search01, Notification01, User, Lock, Book01, Wallet01, ArrowLeft01, Add01, Cancel01, CheckmarkCircle01, Share01, Filter, Analytics01.
+`AdaptiveIcons` covers navigation (home, back, forward, menu, more, close), identity
+(user, lock, password, logout, visibility), actions (add, edit, delete, copy, share,
+download, upload, refresh, search, filter), status (success, check, info, warning, error,
+help) and content (settings, notification, book, wallet, analytics, calendar, clock).
+
+If you add a second icon set that *does* provide a filled family, branch with
+`AdaptiveIcons.resolve(material: ..., cupertino: ...)`.
 
 ## Typography
+
+Use `AdaptiveTypography` (`templates/foundation/adaptive_typography.dart`). One scale, two
+outputs: `AdaptiveTypography.material()` builds the M3 `TextTheme`, `.cupertino()` builds a
+**complete** `CupertinoTextThemeData` — all eight slots, not just `textStyle` and the two nav
+styles. A partially filled Cupertino text theme silently falls back to Flutter's defaults,
+which is how an app ends up with two fonts on one iOS screen.
 
 ```
 M3 DisplayLarge    ↔  iOS largeTitle    — 34px bold
@@ -282,6 +334,39 @@ M3 BodyMedium      ↔  iOS callout       — 16px regular
 M3 LabelLarge      ↔  iOS subheadline   — 15px regular
 M3 LabelSmall      ↔  iOS caption1      — 12px regular
 ```
+
+`fontFamily` defaults to `null` — the platform system font (San Francisco on iOS, Roboto on
+Android). That default is what makes text feel native; override it only for a deliberate brand
+decision. San Francisco's licence covers iOS/macOS/tvOS only, so forcing a Cupertino rendering
+on Android (a gallery with a platform toggle) falls back to another font. Expected, not a bug.
+
+### Never scale type by screen width
+
+The single most common mistake in cross-platform Flutter.
+
+Native apps do **not** resize text based on device size. Body text is 17pt on an iPhone SE and
+17pt on a 16 Pro Max — a larger screen shows *more content*, not bigger text. The same holds on
+Android: the type scale is fixed and window size classes drive layout, not type.
+
+The only axis that legitimately changes text size is the user's accessibility setting (Dynamic
+Type on iOS, font size on Android), which Flutter honours through `MediaQuery.textScalerOf`.
+
+Packages that compute font size from screen width — `flutter_screenutil` (`.sp`), `sizer`,
+`responsive_sizer` — do two kinds of damage: they **override the user's accessibility choice**,
+and they produce a rendering that is neither iOS nor Android. Do not use them for type.
+
+When a dense screen genuinely needs a bound, use `AdaptiveTextScale.clamp` per screen, with a
+reason — never globally:
+
+```dart
+AdaptiveTextScale.clamp(
+  context: context,
+  max: 1.3,
+  child: const AmountEntryForm(),
+)
+```
+
+To adapt to device size, change the **layout** — see `templates/responsive/`.
 
 ## Colors
 
@@ -298,11 +383,23 @@ M3 LabelSmall      ↔  iOS caption1      — 12px regular
 
 ## Spacing & Border Radius
 
+Use `AdaptiveSpacing` and `AdaptiveRadius` (`templates/foundation/adaptive_tokens.dart`)
+rather than literals. Spacing is the same on both platforms; **radii are not** — reading
+`AdaptiveRadius.card` instead of hard-coding `12` is part of what keeps a screen from looking
+like an Android app running on an iPhone.
+
 ```dart
-const double kPagePadding = 16.0;
-const double kItemSpacing = 8.0;
-const double kSectionSpacing = 24.0;
+AdaptiveSpacing.page      // 16 — content against the screen edge
+AdaptiveSpacing.item      // 8  — between adjacent items
+AdaptiveSpacing.section   // 24 — between sections
+
+AdaptiveRadius.card       // 12 on Material, 10 on Cupertino
+AdaptiveRadius.buttonBorder  // ready-made BorderRadius
 ```
+
+The same file also ships `AdaptiveColors` (iOS system colours resolved via
+`resolveFrom(context)` so dark mode works, mapped onto M3 roles), `AdaptiveMotion` (durations
+and per-platform curves) and `AdaptiveScrollPhysics.of()`.
 
 | Element | Android (M3) | iOS |
 |---------|-------------|-----|
@@ -379,7 +476,7 @@ Adaptive widgets dispatch hundreds of widgets per screen. See [performance.md](r
 For detailed implementation code and advanced patterns:
 
 - **[foundation.md](references/foundation.md)** — PlatformWidget, PlatformUtils, PlatformBuilder, AdaptiveThemeScope, barrel file, app entry point
-- **[widgets.md](references/widgets.md)** — Full implementation code for all 37 widgets
+- **[widgets.md](references/widgets.md)** — Implementation notes for every widget
 - **[accessibility.md](references/accessibility.md)** — Semantics, Dynamic Type, VoiceOver/TalkBack, WCAG AA
 - **[responsive.md](references/responsive.md)** — Breakpoints, LayoutBuilder, iPad/tablet, landscape
 - **[states.md](references/states.md)** — Loading/shimmer, empty, error, disabled state patterns

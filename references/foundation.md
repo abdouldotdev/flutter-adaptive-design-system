@@ -2,23 +2,77 @@
 
 ## PlatformUtils
 
-Single source of truth for platform detection. Use `dart:io` Platform.
+Single source of truth for platform detection.
+
+**UI branching uses `defaultTargetPlatform`, never `dart:io`'s `Platform`.** A direct
+`import 'dart:io'` **breaks the web build outright** — the import itself is rejected at
+compile time, even under a `kIsWeb` runtime guard. The real-host-OS getters therefore
+reach `dart:io` through a **conditional import** (a web stub + a native impl). And UI
+branching stays off `Platform` entirely so the iOS branch is reachable from a web gallery
+and exercisable from widget tests.
+
+The `isIOS` / `isAndroid` / … getters report the REAL host OS and must be reserved for
+non-UI concerns (permissions, store links, file paths).
 
 ```dart
-import 'dart:io' show Platform;
+// platform_utils.dart
+import 'package:flutter/foundation.dart';
+
+import 'platform_os_stub.dart' if (dart.library.io) 'platform_os_io.dart' as os;
 
 abstract final class PlatformUtils {
-  static bool get isCupertino => Platform.isIOS || Platform.isMacOS;
+  /// Forces the rendering in ANY build mode (release-safe). null in production.
+  static TargetPlatform? debugOverridePlatform;
+
+  static bool get isCupertino {
+    final p = debugOverridePlatform ?? defaultTargetPlatform;
+    return p == TargetPlatform.iOS || p == TargetPlatform.macOS;
+  }
   static bool get isMaterial => !isCupertino;
-  static bool get isIOS => Platform.isIOS;
-  static bool get isAndroid => Platform.isAndroid;
-  static bool get isMacOS => Platform.isMacOS;
-  static bool get isDesktop => Platform.isMacOS || Platform.isWindows || Platform.isLinux;
-  static bool get isMobile => Platform.isIOS || Platform.isAndroid;
+
+  // Real host OS — non-UI concerns only. Routed through the conditional import.
+  static bool get isIOS => os.isIOS;
+  static bool get isAndroid => os.isAndroid;
+  static bool get isMacOS => os.isMacOS;
+  static bool get isLinux => os.isLinux;
+  static bool get isWindows => os.isWindows;
+  static bool get isWeb => kIsWeb;
+  static bool get isMobile => isIOS || isAndroid;
+  static bool get isDesktop => isMacOS || isLinux || isWindows;
 }
 ```
 
-> **Note**: `Platform` is resolved at startup and never changes at runtime. These getters are effectively constants — no performance concern.
+```dart
+// platform_os_stub.dart — web (no dart:io)
+bool get isIOS => false;
+bool get isAndroid => false;
+bool get isMacOS => false;
+bool get isLinux => false;
+bool get isWindows => false;
+```
+
+```dart
+// platform_os_io.dart — native
+import 'dart:io' as io;
+bool get isIOS => io.Platform.isIOS;
+bool get isAndroid => io.Platform.isAndroid;
+bool get isMacOS => io.Platform.isMacOS;
+bool get isLinux => io.Platform.isLinux;
+bool get isWindows => io.Platform.isWindows;
+```
+
+> **Note**: both `defaultTargetPlatform` and `Platform` are resolved once at startup. These getters are effectively constants — no performance concern.
+
+> **Gallery / preview toggle**: set `PlatformUtils.debugOverridePlatform =
+> TargetPlatform.iOS` (or `.android`) and rebuild the subtree. This works in **every build
+> mode**, including a `--release` build deployed to a static host.
+>
+> Do **not** use `debugDefaultTargetPlatformOverride` for a deployed gallery: it is
+> debug-only. Setting it in a release build throws `Cannot modify
+> debugDefaultTargetPlatformOverride in non-debug builds`, and `defaultTargetPlatform`
+> ignores it outside debug — so the toggle crashes the moment the gallery is served. It is
+> fine in **widget tests** (they run in debug), where `debugOverridePlatform` stays null
+> and `defaultTargetPlatform` picks up the debug override.
 
 ## PlatformWidget — Pattern A Base Class
 
@@ -162,7 +216,13 @@ class AdaptivePageRoute {
 
 ## Barrel File — Single Import
 
-`lib/design_system/design_system.dart`:
+**Use the shipped barrel: `templates/adaptive.dart`.** It is generated against the real
+template layout, exports all 51 widgets plus the foundation, and is verified to have no name
+collisions. Copy it alongside the other templates and import that one file.
+
+The listing below shows the *shape* of a barrel and is illustrative only — its folder names
+predate the current layout (`widgets/layout/`, `widgets/buttons/`, … rather than `navigation/`,
+`content/`), so do not copy it verbatim.
 
 ```dart
 library;

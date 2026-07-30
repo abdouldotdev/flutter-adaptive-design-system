@@ -11,7 +11,7 @@ class AdaptiveChip extends StatelessWidget {
   final String label;
 
   /// Optional HugeIcon displayed before the label.
-  final List<List<dynamic>>? icon;
+  final IconData? icon;
 
   /// Called when the chip's delete button is tapped.
   /// If null, no delete button is shown.
