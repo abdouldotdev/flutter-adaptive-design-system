@@ -479,3 +479,7 @@ For detailed implementation code and advanced patterns:
 - **[responsive.md](references/responsive.md)** — Breakpoints, LayoutBuilder, iPad/tablet, landscape
 - **[states.md](references/states.md)** — Loading/shimmer, empty, error, disabled state patterns
 - **[performance.md](references/performance.md)** — const optimization, rebuild prevention, list performance, animation, profiling
+
+---
+
+Built by [Abdoul](https://abdoul.dev) — [abdoul.dev](https://abdoul.dev)

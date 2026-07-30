@@ -135,3 +135,7 @@ Deep-dive docs live in `references/`:
 ## 📄 License
 
 MIT © [Appbiz Studio LLC](https://appbiz.studio) — see [LICENSE](LICENSE).
+
+---
+
+Built by **[Abdoul](https://abdoul.dev)** — [abdoul.dev](https://abdoul.dev)
