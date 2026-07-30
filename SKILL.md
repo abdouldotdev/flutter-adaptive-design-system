@@ -8,8 +8,6 @@ description: |
 
 # Flutter Adaptive Design System
 
-> Brought to you by **[Appbiz Studio LLC](https://appbiz.studio)**
-
 Generate platform-native Flutter UI. iOS renders Cupertino widgets; Android renders Material 3.
 Single codebase, two native experiences.
 
